@@ -162,7 +162,7 @@ class MultiHeadAttention(nn.Module):
     """
 
     def __init__(self, n_units, multi_heads=8, attention_dropout=0.1,
-                 pos_attn=False):
+                 pos_attn=False,topk=-1):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = nn.Linear(n_units,
                              n_units,
@@ -178,6 +178,7 @@ class MultiHeadAttention(nn.Module):
                                                 bias=False)
         self.h = multi_heads
         self.pos_attn = pos_attn
+        self.topk = topk
         self.scale_score = 1. / (n_units // multi_heads) ** 0.5
         self.dropout = nn.Dropout(attention_dropout)
 
@@ -211,12 +212,16 @@ class MultiHeadAttention(nn.Module):
         Q.mul_(self.scale_score)
         batch_A = torch.bmm(Q, K.transpose(1, 2).contiguous())
 
-<<<<<<< HEAD
-        batch_A = batch_A.masked_fill(~mask, -np.inf) # Works in v0.4
-=======
         batch_A = batch_A.masked_fill(1. - mask, -np.inf) # Works in v0.4
->>>>>>> dev
         # batch_A = batch_A.masked_fill(mask == 0, -1e18)
+        #print("batch_A before:",batch_A[0])
+        #print("batch_A shape", batch_A.shape)
+        if self.topk>0:
+             if batch_A.shape[2]>=self.topk:
+                  topk, indices = torch.topk(batch_A, self.topk, dim=2)
+                  batch_A = torch.zeros(batch_A.shape).cuda().scatter_(2,indices, topk)
+                  batch_A[batch_A==0] = -np.inf
+        #print("batch_A after:",batch_A[0])
         batch_A = F.softmax(batch_A, dim=2)
 
         # Replaces 'NaN' with zeros and other values with the original ones
@@ -272,6 +277,7 @@ class EncoderLayer(nn.Module):
         self.dropout2 = nn.Dropout(layer_prepostprocess_dropout)
 
     def forward(self, e, xx_mask, pad_remover=None):
+        #print("Encoder self attention")
         sub = self.self_attention(self.ln_1(e),
                                   mask=xx_mask)
         e = e + self.dropout1(sub)
@@ -286,9 +292,10 @@ class DecoderLayer(nn.Module):
     def __init__(self, n_units, multi_heads=8,
                  layer_prepostprocess_dropout=0.1,
                  pos_attention=False, n_hidden=2048,
-                 attention_dropout=0.1, relu_dropout=0.1):
+                 attention_dropout=0.1, relu_dropout=0.1,topk=3):
         super(DecoderLayer, self).__init__()
         self.pos_attention = pos_attention
+        self.topk = topk
         self.ln_1 = LayerNorm(n_units,
                               eps=1e-3)
         self.self_attention = MultiHeadAttention(n_units,
@@ -316,7 +323,7 @@ class DecoderLayer(nn.Module):
                               eps=1e-3)
         self.source_attention = MultiHeadAttention(n_units,
                                                    multi_heads,
-                                                   attention_dropout)
+                                                   attention_dropout,topk=self.topk)
         self.dropout2 = nn.Dropout(layer_prepostprocess_dropout)
 
         self.ln_3 = LayerNorm(n_units,
@@ -328,6 +335,7 @@ class DecoderLayer(nn.Module):
 
     def forward(self, e, s, xy_mask, yy_mask, pad_remover):
         batch, units, length = e.shape
+        #print("Decoder self attention")
         sub = self.self_attention(self.ln_1(e),
                                   mask=yy_mask)
         e = e + self.dropout1(sub)
@@ -338,6 +346,7 @@ class DecoderLayer(nn.Module):
                                      self.ln_pos(e),
                                      mask=yy_mask)
             e = e + self.dropout_pos(sub)
+        #print("Decoder source attention")
         sub = self.source_attention(self.ln_2(e),
                                     s,
                                     mask=xy_mask)
@@ -378,7 +387,7 @@ class Decoder(nn.Module):
     def __init__(self, n_layers, n_units, multi_heads=8,
                  layer_prepostprocess_dropout=0.1, pos_attention=False,
                  n_hidden=2048, attention_dropout=0.1,
-                 relu_dropout=0.1):
+                 relu_dropout=0.1,topk=3):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
@@ -388,7 +397,7 @@ class Decoder(nn.Module):
                                  pos_attention,
                                  n_hidden,
                                  attention_dropout,
-                                 relu_dropout)
+                                 relu_dropout,topk)
             self.layers.append(layer)
         self.ln = LayerNorm(n_units,
                             eps=1e-3)
@@ -408,6 +417,8 @@ class Transformer(nn.Module):
     def __init__(self, config):
         super(Transformer, self).__init__()
         self.scale_emb = config.n_units ** 0.5
+        self.context = int(config.context)
+        self.topk = int(config.topk)
         self.padding_idx = 0
         self.embed_word = ScaledEmbedding(config.n_vocab,
                                           config.n_units,
@@ -433,7 +444,8 @@ class Transformer(nn.Module):
                                config.pos_attention,
                                config.n_hidden,
                                config.attention_dropout,
-                               config.relu_dropout)
+                               config.relu_dropout,
+                               self.topk)
         self.use_pad_remover = config.use_pad_remover
 
         if config.embed_position:
@@ -518,11 +530,18 @@ class Transformer(nn.Module):
         history_mask = history_mask.astype(np.int32)
         history_mask = Variable(torch.ByteTensor(history_mask).type(utils.BYTE_TYPE),
                                 requires_grad=False)
-<<<<<<< HEAD
-        return history_mask.to(torch.bool)
-=======
         return history_mask
->>>>>>> dev
+
+    def make_context_mask(self, block, context):
+        batch, length = block.shape
+        arange = np.arange(length)
+        history_mask = (np.abs(arange[None,]-arange[:,None]) <= context)[None,]
+        history_mask = np.broadcast_to(history_mask,
+                                       (batch, length, length))
+        history_mask = history_mask.astype(np.int32)
+        history_mask = Variable(torch.ByteTensor(history_mask).type(utils.BYTE_TYPE),
+                                requires_grad=False)
+        return history_mask
 
     def tied_linear(self, h):
         return F.linear(h, self.embed_word.weight, self.affine_bias)
@@ -530,7 +549,7 @@ class Transformer(nn.Module):
     def output(self, h):
         return self.affine(h)
 
-    def output_and_loss(self, h_block, t_block):
+    def output_and_loss(self, h_block, t_block,return_logits):
         batch, length, units = h_block.shape
         # shape : (batch * sequence_length, num_classes)
         logits_flat = seq_func(self.affine,
@@ -559,10 +578,13 @@ class Transformer(nn.Module):
         stats = utils.Statistics(loss=loss.data.cpu() * n_total,
                                  n_correct=n_correct,
                                  n_words=n_total)
-        return loss, stats
+        if return_logits:
+            return loss, stats, log_probs_flat
+        else:
+            return loss, stats
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False,
-                z_blocks=None):
+                z_blocks=None,return_logits=False):
         batch, x_length = x_block.shape
         batch, y_length = y_in_block.shape
 
@@ -571,6 +593,9 @@ class Transformer(nn.Module):
                                                  x_block)
             xx_mask = self.make_attention_mask(x_block,
                                                x_block)
+            if self.context>0:
+                xx_mask = xx_mask * self.make_context_mask(x_block,self.context)
+            #print("xx_mask:",xx_mask[0])
             xpad_obj = None
             if self.use_pad_remover:
                 xpad_obj = PadRemover(x_block >= preprocess.Vocab_Pad.PAD)
@@ -588,7 +613,9 @@ class Transformer(nn.Module):
         yy_mask = self.make_attention_mask(y_in_block,
                                            y_in_block)
         yy_mask *= self.make_history_mask(y_in_block)
-
+        if self.context>0:
+            yy_mask = yy_mask * self.make_context_mask(y_in_block,self.context)
+        #print("yy_mask:",yy_mask[0])
         # Create PadRemover objects
         ypad_obj = None
         if self.use_pad_remover:
@@ -606,7 +633,7 @@ class Transformer(nn.Module):
             return self.output(h_block[:, -1, :]), z_blocks
         else:
             return self.output_and_loss(h_block,
-                                        y_out_block)
+                                        y_out_block,return_logits=return_logits)
 
     def translate(self, x_block, max_length=50, beam=5, alpha=0.6):
         if beam > 1:
