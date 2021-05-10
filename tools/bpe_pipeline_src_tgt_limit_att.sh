@@ -8,14 +8,15 @@ clip=$6
 frac_replace=$7
 context=$8
 topk=$9
-gpu=${10}
+bias=${10}
+gpu=${11}
 TF=$(pwd)
 gpu=${gpu/,/ }
 export PATH=$TF/bin:$PATH
 #======= EXPERIMENT SETUP ======
 
 # update these variables
-NAME="run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}"
+NAME="run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}_bias_${bias}"
 OUT="temp/$NAME"
 # OUT="temp/$NAME"
 
@@ -75,14 +76,14 @@ CMD="python $TF/train_new.py -i $OUT/data --data processed \
 --batchsize 30 --tied --beam_size 5 --epoch 15 \
 --layers 6 --multi_heads 8 --gpu $gpu --max_decode_len 70 \
 --dev_hyp $OUT/test/valid.out --test_hyp $OUT/test/test.out \
---model Transformer --metric bleu --wbatchsize 3000 --log_path $OUT/${NAME}.log --lambda_val $lambda --clip $clip --frac_replace $frac_replace --context $context --topk $topk --epoch_start $epoch_start --emb_topk $emb_topk"
+--model Transformer --metric bleu --wbatchsize 3000 --log_path $OUT/${NAME}.log --lambda_val $lambda --clip $clip --frac_replace $frac_replace --context $context --topk $topk --epoch_start $epoch_start --emb_topk $emb_topk --bias $bias"
 else
 CMD="python $TF/train_new.py -i $OUT/data --data processed \
 --model_file $OUT/models/model_$NAME.ckpt --best_model_file $OUT/models/model_best_$NAME.ckpt \
 --batchsize 30 --tied --beam_size 5 --epoch 15 \
 --layers 6 --multi_heads 8 --multi_gpu $gpu --gpu 0 --max_decode_len 70 \
 --dev_hyp $OUT/test/valid.out --test_hyp $OUT/test/test.out \
---model Transformer --metric bleu --wbatchsize 3000 --log_path $OUT/${NAME}.log --lambda_val $lambda --clip $clip --frac_replace $frac_replace --context $context --topk $topk --epoch_start $epoch_start --emb_topk $emb_topk"
+--model Transformer --metric bleu --wbatchsize 3000 --log_path $OUT/${NAME}.log --lambda_val $lambda --clip $clip --frac_replace $frac_replace --context $context --topk $topk --epoch_start $epoch_start --emb_topk $emb_topk --bias $bias"
 fi
 echo "Training command :: $CMD"
 eval "$CMD"
@@ -113,6 +114,7 @@ cat $OUT/test/test.out.ema.bpe | sed -E 's/(@@ )|(@@ ?$)//g' > $OUT/test/test.ou
 
 t2t-bleu --translation=$OUT/test/test.out.ema --reference=$OUT/data/test.tgt >> $OUT/${NAME}.log
 
+echo "Value of bias is $bias" >> $OUT/${NAME}.log
 echo "Value of epoch_start is $epoch_start" >> $OUT/${NAME}.log
 echo "Value of emb_topk is $emb_topk" >> $OUT/${NAME}.log
 echo "Value of lambda is $lambda" >> $OUT/${NAME}.log
