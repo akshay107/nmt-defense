@@ -457,16 +457,18 @@ def main():
                     if i==0:
                         print("num_words:",num_words)
                     ## Unbiased position selection becomes biased toward high frequency words(commenting for now)
-                    #inds = np.random.permutation(range(train_batch_new[i][0].shape[0]))[:num_words]
+                    if args.bias == 'True':
+                        #print("Trying biased way")
+                        inds = np.random.permutation(range(train_batch_new[i][0].shape[0]))[:num_words]
                     ## TODO: Counter the high frequency words bias using init_word_d
-                    #print("Selecting positions")
-                    cand_counts = [init_word_d[train_batch_new[i][0][j]] for j in range(len(train_batch_new[i][0]))]
-                    #print("Counts and number of candidates:",cand_counts,len(cand_counts))
-                    cand_logits = list(map(lambda i: np.exp(-1e-2*i) + 1e-9,cand_counts))## 1e-9 for numerical stability
-                    cand_probs = cand_logits/np.sum(cand_logits)
-                    #print("Probabilies:",cand_probs)
-                    inds = np.random.choice(len(train_batch_new[i][0]),num_words, replace=False, p = cand_probs)
-                    #print("Count of position indices chosen:",np.array(cand_counts)[inds])
+                    if args.bias == 'False':
+                        #print("Trying unbiased way")
+                        cand_counts = [init_word_d[train_batch_new[i][0][j]] for j in range(len(train_batch_new[i][0]))]
+                        #print("Counts and number of candidates:",cand_counts,len(cand_counts))
+                        cand_logits = list(map(lambda i: np.exp(-1e-2*i) + 1e-9,cand_counts))## 1e-9 for numerical stability
+                        cand_probs = cand_logits/np.sum(cand_logits)
+                        #print("Probabilies:",cand_probs)
+                        inds = np.random.choice(len(train_batch_new[i][0]),num_words, replace=False, p = cand_probs)
                     #train_batch_new[i][0][inds] = np.random.choice(range(5,len(id2w)),num_words)
                     #vocab_prune = list(set(good_vocab).difference(train_batch[i][0]))
                     forbid_words = set([w2id[id2w[j].capitalize()] for j in train_batch[i][0] if id2w[j].capitalize() in good_words]).union(set([w2id[id2w[j].lower()] for j in train_batch[i][0] if id2w[j].lower() in w2id.keys()]).union(train_batch[i][0]))
@@ -487,22 +489,25 @@ def main():
                     ###x_act = np.array(good_vocab)[np.array(x.cpu())]
                     x_act = x
                     x_act[np.where(np.isin(x_act,forbid_words))] = -1
-                    ## Unbiased way (commenting for now)
-                    #train_batch_new[i][0][inds] = np.array([np.random.choice(x_act[k][x_act[k]!=-1]) for k in range(len(x_act))])
+                    if args.bias == 'True':
+                        #print("Trying biased way")
+                        train_batch_new[i][0][inds] = np.array([np.random.choice(x_act[k][x_act[k]!=-1]) for k in range(len(x_act))])
                     # Trying an alternate way (biased towards less count)
-                    for k, ind in enumerate(inds):
-                        #print("Index:",ind)
-                        #print("Initial word:",train_batch[i][0][ind])
-                        cand_counts = [rep_d[(train_batch[i][0][ind], cand)] for cand in x_act[k][x_act[k]!=-1]]
-                        #print("Counts and number of candidates:",cand_counts,len(cand_counts))
-                        cand_logits = list(map(lambda i: np.exp(-1e-2*i) + 1e-9,cand_counts))## 1e-9 for numerical stability
-                        cand_probs = cand_logits/np.sum(cand_logits)
-                        #print("Probabilies:",cand_probs)
-                        train_batch_new[i][0][ind] = np.random.choice(x_act[k][x_act[k]!=-1], p = cand_probs)
-                        #print("x_act allowed:",x_act[k][x_act[k]!=-1])
-                        #print("Final word:",train_batch_new[i][0][ind])
-                        #print(np.where(x_act[k][x_act[k]!=-1]==train_batch_new[i][0][ind]))
-                        #print("Count of word selected",np.array(cand_counts)[np.where(x_act[k][x_act[k]!=-1]==train_batch_new[i][0][ind])])
+                    if args.bias == 'False':
+                        #print("Trying unbiased way")
+                        for k, ind in enumerate(inds):
+                            #print("Index:",ind)
+                            #print("Initial word:",train_batch[i][0][ind])
+                            cand_counts = [rep_d[(train_batch[i][0][ind], cand)] for cand in x_act[k][x_act[k]!=-1]]
+                            #print("Counts and number of candidates:",cand_counts,len(cand_counts))
+                            cand_logits = list(map(lambda i: np.exp(-1e-2*i) + 1e-9,cand_counts))## 1e-9 for numerical stability
+                            cand_probs = cand_logits/np.sum(cand_logits)
+                            #print("Probabilies:",cand_probs)
+                            train_batch_new[i][0][ind] = np.random.choice(x_act[k][x_act[k]!=-1], p = cand_probs)
+                            #print("x_act allowed:",x_act[k][x_act[k]!=-1])
+                            #print("Final word:",train_batch_new[i][0][ind])
+                            #print(np.where(x_act[k][x_act[k]!=-1]==train_batch_new[i][0][ind]))
+                            #print("Count of word selected",np.array(cand_counts)[np.where(x_act[k][x_act[k]!=-1]==train_batch_new[i][0][ind])])
                     ###print(np.array(list(zip(train_batch[i][0][inds],train_batch_new[i][0][inds]))))
                     ###print("np_rep is:")
                     ###if len(np_rep)==1:
