@@ -7,27 +7,28 @@ clip=$6
 frac_replace=$7
 context=$8
 topk=$9
-gpu=${10}
-size=${11}
+bias=${10}
+gpu=${11}
+size=${12}
 
-bash tools/bpe_pipeline_src_tgt_limit_att.sh $src $tgt $epoch_start $emb_topk $lambda $clip $frac_replace $context $topk $gpu
+bash tools/bpe_pipeline_src_tgt_limit_att.sh $src $tgt $epoch_start $emb_topk $lambda $clip $frac_replace $context $topk $bias $gpu
 
 
-if python get_good_words.py $src $tgt ./temp/run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}/data/
+if python get_good_words.py $src $tgt ./temp/run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}_bias_${bias}/data/
 then
     echo "check successful for run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}"
 else
     exit
 fi
 
-cp ./temp/run_${src}_${tgt}/test.src.reduced.final ./temp/run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}/
+cp ./temp/run_${src}_${tgt}/test.src.reduced.final ./temp/run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}_bias_${bias}/
 
 
 # run bruteforce attack
 
-echo "running bruteforce attack for run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}"
+echo "running bruteforce attack for run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}_bias_${bias}"
 
-folder="run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}"
+folder="run_${src}_${tgt}_ep_${epoch_start}_emb_${emb_topk}_lambda_${lambda}_clip_${clip}_frac_${frac_replace}_con_${context}_top_${topk}_bias_${bias}"
 out_file="bf_output.txt"
 
 python translate.py -i temp/$folder/data/ --data processed --output temp/$folder/test.out.bpe.reduced.final --best_model_file temp/$folder/models/model_best_$folder.ckpt --src temp/$folder/test.src.reduced.final --gpu 0
