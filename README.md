@@ -1,1 +1,1 @@
-This code is for two contrasting defense strategies against invariance-based attack for NMT systems. The two defenese strategies, namely, Learn to Deal (LTD) and Learn to Ignore (LTI), perform noise-aware training or NMT systems.
+This code is for two contrasting defense strategies against invariance-based attack for NMT systems. The two defenese strategies, namely, Learn to Deal (LTD) and Learn to Ignore (LTI), perform noise-aware training on NMT systems.
