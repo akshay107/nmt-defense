@@ -4,4 +4,4 @@ This repository contains code for the paper:
 
 This code is for two contrasting defense strategies against invariance-based attack for NMT systems. The two defenese strategies, namely, Learn to Deal (LTD) and Learn to Ignore (LTI), perform noise-aware training on NMT systems.
 
-The repo for Min-Grad + Soft-Att attack is [here(https://github.com/akshay107/nmt-attack/)].
+The repo for Min-Grad + Soft-Att attack is [[here](https://github.com/akshay107/nmt-attack/)].
